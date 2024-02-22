@@ -48,10 +48,10 @@ char *test_dir(char *path) {
   for (int i = 0; i < 4; i++) {
     sprintf(config, "%s/%s", path, PHP_CS_FIXER_CONFIG_FILES[i]);
     if (0 == access(config, R_OK)) {
-      f_config = malloc(strlen("--config") + strlen(path) +
+      f_config = malloc(strlen("--using-cache=no --config") + strlen(path) +
                         strlen(PHP_CS_FIXER_CONFIG_FILES[i]) + 2);
       test_ptr(f_config);
-      sprintf(f_config, "--config=%s/%s", path, PHP_CS_FIXER_CONFIG_FILES[i]);
+      sprintf(f_config, "--using-cache=no --config=%s/%s", path, PHP_CS_FIXER_CONFIG_FILES[i]);
       return f_config;
     }
   }
@@ -150,7 +150,13 @@ void walk_path(const char *path, struct file_batch_list *list) {
   DIR *dir;
   char *f_config = NULL, *f_executable = NULL;
   char argv_path[PATH_MAX], directory[PATH_MAX], buf[PATH_MAX];
-  strcpy(argv_path, realpath(path, buf));
+  char *r_path = realpath(path, buf);
+  if (NULL == r_path) {
+    printf("Cannot read: %s, error: %s\n", path, strerror(errno));
+    return;
+  }
+  strcpy(argv_path, r_path);
+  free(r_path);
   struct stat path_stat;
   stat(argv_path, &path_stat);
   if (S_ISDIR(path_stat.st_mode)) {
