@@ -156,7 +156,6 @@ void walk_path(const char *path, struct file_batch_list *list) {
     return;
   }
   strcpy(argv_path, r_path);
-  free(r_path);
   struct stat path_stat;
   stat(argv_path, &path_stat);
   if (S_ISDIR(path_stat.st_mode)) {
@@ -205,9 +204,9 @@ void walk_path(const char *path, struct file_batch_list *list) {
       test_ptr(f_config);
       strcpy(f_config, "--standard=PSR12");
     } else {
-      f_config = malloc(strlen("--rules=@Symfony,@PSR12") + 1);
+      f_config = malloc(strlen("--rules=@Symfony,@PSR12 --using-cache=no") + 1);
       test_ptr(f_config);
-      strcpy(f_config, "--rules=@Symfony,@PSR12");
+      strcpy(f_config, "--rules=@Symfony,@PSR12 --using-cache=no");
     }
   }
 
