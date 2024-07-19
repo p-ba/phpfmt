@@ -9,105 +9,77 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-struct file_batch_list {
-    struct file_batch *items;
-    size_t length;
-};
+#define MAX_BATCH_LENGTH 100
+
+#define MAX_PATH                                                               \
+    (3 * PATH_MAX) // take more than needed to account for cli arguments
+
+const char PHPCS_CONFIG_FILES[][MAX_PATH] = {"phpcs.xml", "phpcs.xml.dist"};
+const char PHP_CS_FIXER_CONFIG_FILES[][MAX_PATH] = {
+    ".php-cs-fixer", ".php-cs-fixer.php", ".php-cs-fixer.dist",
+    ".php-cs-fixer.dist.php"};
 
 struct file_batch {
-    char *config;
-    char *executable;
+    char config[MAX_PATH];
+    char executable[MAX_PATH];
     char *files;
 };
 
-char *test_dir(char *path) {
-    const char PHPCS_CONFIG_FILES[][PATH_MAX] = {"phpcs.xml", "phpcs.xml.dist"};
-    const char PHP_CS_FIXER_CONFIG_FILES[][PATH_MAX] = {
-        ".php-cs-fixer", ".php-cs-fixer.php", ".php-cs-fixer.dist",
-        ".php-cs-fixer.dist.php"};
-    char *config = malloc(1);
-    char *f_config = NULL;
-    strcpy(config, path);
-    for (int i = 0; i < 2; i++) {
-        config =
-            realloc(config, strlen(config) + strlen(PHPCS_CONFIG_FILES[i]));
+struct file_batch_list {
+    struct file_batch items[MAX_BATCH_LENGTH];
+    size_t length;
+};
+
+void test_config(char *buffer, char *path) {
+    char config[MAX_PATH];
+
+    int length = sizeof(PHPCS_CONFIG_FILES) / sizeof(PHPCS_CONFIG_FILES[0]);
+    for (int i = 0; i < length; i++) {
         sprintf(config, "%s/%s", path, PHPCS_CONFIG_FILES[i]);
         if (0 == access(config, R_OK)) {
-            f_config = malloc(strlen("--standard=") + strlen(path) +
-                              strlen(PHPCS_CONFIG_FILES[i]) + 2);
-            assert(f_config != NULL);
-            free(config);
-            sprintf(f_config, "--standard=%s/%s", path, PHPCS_CONFIG_FILES[i]);
-            return f_config;
+            sprintf(buffer, "--standard=%s/%s", path, PHPCS_CONFIG_FILES[i]);
+            return;
         }
     }
 
-    for (int i = 0; i < 4; i++) {
-        config =
-            realloc(config, strlen(config) + strlen(PHPCS_CONFIG_FILES[i]));
+    length = sizeof(PHP_CS_FIXER_CONFIG_FILES) / sizeof(PHP_CS_FIXER_CONFIG_FILES[0]);
+    for (int i = 0; i < length; i++) {
         sprintf(config, "%s/%s", path, PHP_CS_FIXER_CONFIG_FILES[i]);
         if (0 == access(config, R_OK)) {
-            f_config =
-                malloc(strlen("--using-cache=no --config") + strlen(path) +
-                       strlen(PHP_CS_FIXER_CONFIG_FILES[i]) + 2);
-            assert(f_config != NULL);
-            sprintf(f_config, "--using-cache=no --config=%s/%s", path,
+            sprintf(buffer, "--using-cache=no --config=%s/%s", path,
                     PHP_CS_FIXER_CONFIG_FILES[i]);
-            free(config);
-            return f_config;
+            return;
         }
     }
-
-    free(config);
-
-    return NULL;
 }
 
-char *test_vendor(char *path) {
-    char *test_phpcs = malloc(strlen(path) + strlen("/vendor/bin/phpcbf") + 1);
-    strcpy(test_phpcs, path);
-    strcat(test_phpcs, "/vendor/bin/phpcbf");
+void test_vendor(char *buffer, char *path) {
+    char test_phpcs[MAX_PATH];
+    sprintf(test_phpcs, "%s/vendor/bin/phpcbf", path);
     if (0 == access(test_phpcs, R_OK)) {
-        char *phpcs =
-            malloc(strlen("php -dmemory_limit=-1 /vendor/bin/phpcbf") +
-                   strlen(path) + 1);
-        assert(phpcs != NULL);
-        sprintf(phpcs, "php -dmemory_limit=-1 %s/vendor/bin/phpcbf", path);
-        free(test_phpcs);
-        return phpcs;
+        sprintf(buffer, "php -dmemory_limit=-1 %s/vendor/bin/phpcbf", path);
+        return;
     }
 
-    char *test_php_cs_fixer =
-        malloc(strlen(path) + strlen("/vendor/bin/php-cs-fixer") + 1);
-    strcpy(test_php_cs_fixer, path);
-    strcat(test_php_cs_fixer, "/vendor/bin/php-cs-fixer");
+    char test_php_cs_fixer[MAX_PATH];
+    sprintf(test_php_cs_fixer, "%s/vendor/bin/php-cs-fixer", path);
     if (0 == access(test_php_cs_fixer, R_OK)) {
-        char *php_cs_fixer = malloc(
-            strlen("PHP_CS_FIXER_IGNORE_ENV=true php -dmemory_limit=-1") +
-            strlen(" fix") + strlen(test_php_cs_fixer) + 1);
-        assert(php_cs_fixer != NULL);
-        sprintf(php_cs_fixer,
+        sprintf(buffer,
                 "PHP_CS_FIXER_IGNORE_ENV=true php -dmemory_limit=-1 %s fix",
                 test_php_cs_fixer);
-        free(test_php_cs_fixer);
-        return php_cs_fixer;
     }
-    free(test_php_cs_fixer);
-    free(test_phpcs);
-
-    return NULL;
 }
 
-int run_linter(const char *file, const char *f_config,
+int run_linter(const char *files, const char *f_config,
                const char *f_executable) {
     char *cmd =
-        malloc(strlen(f_executable) + strlen(f_config) + strlen(file) + 3);
+        malloc(strlen(f_executable) + strlen(f_config) + strlen(files) + 3);
     assert(cmd != NULL);
-    sprintf(cmd, "%s %s %s", f_executable, f_config, file);
+    sprintf(cmd, "%s %s %s", f_executable, f_config, files);
 
     printf("Executable: %s\n", f_executable);
     printf("Config: %s\n", f_config);
-    printf("Files: %s\n", file);
+    printf("Files: %s\n", files);
     int ret_code = system(cmd);
 
     free(cmd);
@@ -116,25 +88,16 @@ int run_linter(const char *file, const char *f_config,
 
 void add_new_batch(struct file_batch_list *list, char *file, char *config,
                    char *executable) {
+    if (list->length + 1 == MAX_BATCH_LENGTH) {
+        printf("Error: Max batch size reached");
+        exit(1);
+    }
     struct file_batch new_batch;
     new_batch.files = malloc(strlen(file) + 1);
-    new_batch.config = malloc(strlen(config) + 1);
-    new_batch.executable = malloc(strlen(executable) + 1);
     strcpy(new_batch.files, file);
     strcpy(new_batch.config, config);
     strcpy(new_batch.executable, executable);
-
-    if (list->length > 0) {
-        struct file_batch *copy = (struct file_batch *)realloc(
-            list->items, sizeof(struct file_batch) * (list->length + 1));
-        assert(copy != NULL);
-        copy[list->length] = new_batch;
-        list->items = copy;
-    } else {
-        list->items = malloc(sizeof(struct file_batch));
-        assert(list->items != NULL);
-        list->items[0] = new_batch;
-    }
+    list->items[list->length] = new_batch;
     list->length++;
 }
 
@@ -156,8 +119,9 @@ void add_to_list(struct file_batch_list *list, char *file, char *config,
 
 void walk_path(const char *path, struct file_batch_list *list) {
     DIR *dir;
-    char *f_config = NULL, *f_executable = NULL;
-    char argv_path[PATH_MAX], directory[PATH_MAX], buf[PATH_MAX];
+    char f_config[MAX_PATH] = "\0", f_executable[MAX_PATH] = "\0";
+    char argv_path[MAX_PATH] = "\0", directory[MAX_PATH] = "\0",
+         buf[MAX_PATH] = "\0";
     if (NULL == realpath(path, buf)) {
         printf("Cannot read: %s, error: %s\n", path, strerror(errno));
         return;
@@ -175,13 +139,13 @@ void walk_path(const char *path, struct file_batch_list *list) {
         if (strcmp(directory, "/") == 0) {
             break;
         }
-        if (NULL == f_config) {
-            f_config = test_dir(directory);
+        if (!strlen(f_config)) {
+            test_config(f_config, directory);
         }
-        if (NULL == f_executable) {
-            f_executable = test_vendor(directory);
+        if (!strlen(f_executable)) {
+            test_vendor(f_executable, directory);
         }
-        if (f_config != NULL && f_executable != NULL) {
+        if (!strlen(f_config) && !strlen(f_executable)) {
             break;
         }
         strcat(directory, "/..");
@@ -197,28 +161,18 @@ void walk_path(const char *path, struct file_batch_list *list) {
         closedir(dir);
     }
 
-    if (NULL == f_executable) {
-        if (NULL != f_config && NULL != strstr(f_config, "phpcs")) {
-            f_executable = malloc(strlen("phpcbf") + 1);
-            assert(f_executable != NULL);
+    if (!strlen(f_executable)) {
+        if (!strlen(f_config) && NULL != strstr(f_config, "phpcs")) {
             strcpy(f_executable, "phpcbf");
         } else {
-            f_executable = malloc(
-                strlen("PHP_CS_FIXER_IGNORE_ENV=true php-cs-fixer fix") + 1);
-            assert(f_executable != NULL);
             strcpy(f_executable,
                    "PHP_CS_FIXER_IGNORE_ENV=true php-cs-fixer fix");
         }
     }
-    if (NULL == f_config) {
+    if (!strlen(f_config)) {
         if (NULL != strstr(f_executable, "phpcbf")) {
-            f_config = malloc(strlen("--standard=PSR12") + 1);
-            assert(f_config != NULL);
             strcpy(f_config, "--standard=PSR12");
         } else {
-            f_config =
-                malloc(strlen("--rules=@Symfony,@PSR12 --using-cache=no") + 1);
-            assert(f_config != NULL);
             strcpy(f_config, "--rules=@Symfony,@PSR12 --using-cache=no");
         }
     }
@@ -226,27 +180,38 @@ void walk_path(const char *path, struct file_batch_list *list) {
     add_to_list(list, argv_path, f_config, f_executable);
 }
 
-int main(int argc, const char *argv[]) {
-    int exit_code = 0;
-    struct file_batch_list *list = malloc(sizeof(struct file_batch_list));
-    if (1 == argc) {
-        walk_path(".", list);
-    } else {
-        for (int i = 1; i < argc; i++) {
-            walk_path(argv[i], list);
+int main(int argc, char *argv[]) {
+    unsigned int argv_length = 0;
+    for (int i = 0; i < argc; i++) {
+        if (strlen(argv[i]) > PATH_MAX) {
+            printf("Filename is too long: %s", argv[i]);
+            return 1;
         }
+        argv_length += strlen(argv[i]);
     }
 
+    struct file_batch_list *list =
+        malloc((sizeof(struct file_batch_list) * argc) +
+               (sizeof(struct file_batch) * argc) + argv_length);
+
+    for (int i = 1; i < argc; i++) {
+        walk_path(argv[i], list);
+    }
+
+    if (1 == argc) {
+        walk_path(".", list);
+    }
+
+    int exit_code = 0;
     for (int i = 0; i < list->length; i++) {
         int code = run_linter(list->items[i].files, list->items[i].config,
                               list->items[i].executable);
         free(list->items[i].files);
-        free(list->items[i].executable);
-        free(list->items[i].config);
         if (0 != code) {
             exit_code = code;
         }
     }
+    free(list);
 
     return exit_code;
 }
