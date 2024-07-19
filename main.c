@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <dirent.h>
 #include <errno.h>
 #include <libgen.h>
@@ -14,49 +15,50 @@ struct file_batch_list {
 };
 
 struct file_batch {
-    char config[PATH_MAX];
-    char executable[PATH_MAX];
+    char *config;
+    char *executable;
     char *files;
 };
-
-void test_ptr(void *ptr) {
-    if (NULL == ptr) {
-        printf("Memory allocation error: %s\n", strerror(errno));
-        exit(1);
-    }
-}
 
 char *test_dir(char *path) {
     const char PHPCS_CONFIG_FILES[][PATH_MAX] = {"phpcs.xml", "phpcs.xml.dist"};
     const char PHP_CS_FIXER_CONFIG_FILES[][PATH_MAX] = {
         ".php-cs-fixer", ".php-cs-fixer.php", ".php-cs-fixer.dist",
         ".php-cs-fixer.dist.php"};
-    char config[PATH_MAX];
+    char *config = malloc(1);
     char *f_config = NULL;
     strcpy(config, path);
     for (int i = 0; i < 2; i++) {
+        config =
+            realloc(config, strlen(config) + strlen(PHPCS_CONFIG_FILES[i]));
         sprintf(config, "%s/%s", path, PHPCS_CONFIG_FILES[i]);
         if (0 == access(config, R_OK)) {
             f_config = malloc(strlen("--standard=") + strlen(path) +
                               strlen(PHPCS_CONFIG_FILES[i]) + 2);
-            test_ptr(f_config);
+            assert(f_config != NULL);
+            free(config);
             sprintf(f_config, "--standard=%s/%s", path, PHPCS_CONFIG_FILES[i]);
             return f_config;
         }
     }
 
     for (int i = 0; i < 4; i++) {
+        config =
+            realloc(config, strlen(config) + strlen(PHPCS_CONFIG_FILES[i]));
         sprintf(config, "%s/%s", path, PHP_CS_FIXER_CONFIG_FILES[i]);
         if (0 == access(config, R_OK)) {
             f_config =
                 malloc(strlen("--using-cache=no --config") + strlen(path) +
                        strlen(PHP_CS_FIXER_CONFIG_FILES[i]) + 2);
-            test_ptr(f_config);
+            assert(f_config != NULL);
             sprintf(f_config, "--using-cache=no --config=%s/%s", path,
                     PHP_CS_FIXER_CONFIG_FILES[i]);
+            free(config);
             return f_config;
         }
     }
+
+    free(config);
 
     return NULL;
 }
@@ -69,7 +71,7 @@ char *test_vendor(char *path) {
         char *phpcs =
             malloc(strlen("php -dmemory_limit=-1 /vendor/bin/phpcbf") +
                    strlen(path) + 1);
-        test_ptr(phpcs);
+        assert(phpcs != NULL);
         sprintf(phpcs, "php -dmemory_limit=-1 %s/vendor/bin/phpcbf", path);
         free(test_phpcs);
         return phpcs;
@@ -83,7 +85,7 @@ char *test_vendor(char *path) {
         char *php_cs_fixer = malloc(
             strlen("PHP_CS_FIXER_IGNORE_ENV=true php -dmemory_limit=-1") +
             strlen(" fix") + strlen(test_php_cs_fixer) + 1);
-        test_ptr(php_cs_fixer);
+        assert(php_cs_fixer != NULL);
         sprintf(php_cs_fixer,
                 "PHP_CS_FIXER_IGNORE_ENV=true php -dmemory_limit=-1 %s fix",
                 test_php_cs_fixer);
@@ -100,7 +102,7 @@ int run_linter(const char *file, const char *f_config,
                const char *f_executable) {
     char *cmd =
         malloc(strlen(f_executable) + strlen(f_config) + strlen(file) + 3);
-    test_ptr(cmd);
+    assert(cmd != NULL);
     sprintf(cmd, "%s %s %s", f_executable, f_config, file);
 
     printf("Executable: %s\n", f_executable);
@@ -116,6 +118,8 @@ void add_new_batch(struct file_batch_list *list, char *file, char *config,
                    char *executable) {
     struct file_batch new_batch;
     new_batch.files = malloc(strlen(file) + 1);
+    new_batch.config = malloc(strlen(config) + 1);
+    new_batch.executable = malloc(strlen(executable) + 1);
     strcpy(new_batch.files, file);
     strcpy(new_batch.config, config);
     strcpy(new_batch.executable, executable);
@@ -123,12 +127,12 @@ void add_new_batch(struct file_batch_list *list, char *file, char *config,
     if (list->length > 0) {
         struct file_batch *copy = (struct file_batch *)realloc(
             list->items, sizeof(struct file_batch) * (list->length + 1));
-        test_ptr(copy);
+        assert(copy != NULL);
         copy[list->length] = new_batch;
         list->items = copy;
     } else {
         list->items = malloc(sizeof(struct file_batch));
-        test_ptr(list->items);
+        assert(list->items != NULL);
         list->items[0] = new_batch;
     }
     list->length++;
@@ -141,7 +145,7 @@ void add_to_list(struct file_batch_list *list, char *file, char *config,
             char *tmp_ptr =
                 realloc(list->items[i].files,
                         strlen(list->items[i].files) + strlen(file) + 1);
-            test_ptr(tmp_ptr);
+            assert(tmp_ptr != NULL);
             sprintf(tmp_ptr, "%s %s", tmp_ptr, file);
             list->items[i].files = tmp_ptr;
             return;
@@ -196,12 +200,12 @@ void walk_path(const char *path, struct file_batch_list *list) {
     if (NULL == f_executable) {
         if (NULL != f_config && NULL != strstr(f_config, "phpcs")) {
             f_executable = malloc(strlen("phpcbf") + 1);
-            test_ptr(f_executable);
+            assert(f_executable != NULL);
             strcpy(f_executable, "phpcbf");
         } else {
             f_executable = malloc(
                 strlen("PHP_CS_FIXER_IGNORE_ENV=true php-cs-fixer fix") + 1);
-            test_ptr(f_executable);
+            assert(f_executable != NULL);
             strcpy(f_executable,
                    "PHP_CS_FIXER_IGNORE_ENV=true php-cs-fixer fix");
         }
@@ -209,12 +213,12 @@ void walk_path(const char *path, struct file_batch_list *list) {
     if (NULL == f_config) {
         if (NULL != strstr(f_executable, "phpcbf")) {
             f_config = malloc(strlen("--standard=PSR12") + 1);
-            test_ptr(f_config);
+            assert(f_config != NULL);
             strcpy(f_config, "--standard=PSR12");
         } else {
             f_config =
                 malloc(strlen("--rules=@Symfony,@PSR12 --using-cache=no") + 1);
-            test_ptr(f_config);
+            assert(f_config != NULL);
             strcpy(f_config, "--rules=@Symfony,@PSR12 --using-cache=no");
         }
     }
@@ -224,19 +228,21 @@ void walk_path(const char *path, struct file_batch_list *list) {
 
 int main(int argc, const char *argv[]) {
     int exit_code = 0;
-    struct file_batch_list list = {NULL, 0};
+    struct file_batch_list *list = malloc(sizeof(struct file_batch_list));
     if (1 == argc) {
-        walk_path(".", &list);
+        walk_path(".", list);
     } else {
         for (int i = 1; i < argc; i++) {
-            walk_path(argv[i], &list);
+            walk_path(argv[i], list);
         }
     }
 
-    for (int i = 0; i < list.length; i++) {
-        int code = run_linter(list.items[i].files, list.items[i].config,
-                              list.items[i].executable);
-        free(list.items[i].files);
+    for (int i = 0; i < list->length; i++) {
+        int code = run_linter(list->items[i].files, list->items[i].config,
+                              list->items[i].executable);
+        free(list->items[i].files);
+        free(list->items[i].executable);
+        free(list->items[i].config);
         if (0 != code) {
             exit_code = code;
         }
