@@ -7,17 +7,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #define MAX_BATCH_LENGTH 100
 
 #define MAX_PATH                                                               \
     (3 * PATH_MAX) // take more than needed to account for cli arguments
 
-const char PHPCS_CONFIG_FILES[][MAX_PATH] = {"phpcs.xml", "phpcs.xml.dist"};
-const char PHP_CS_FIXER_CONFIG_FILES[][MAX_PATH] = {
-    ".php-cs-fixer", ".php-cs-fixer.php", ".php-cs-fixer.dist",
-    ".php-cs-fixer.dist.php"};
+const char CONFIG_FILES[][MAX_PATH] = {
+    "phpcs.xml",         "phpcs.xml.dist",     ".php-cs-fixer",
+    ".php-cs-fixer.php", ".php-cs-fixer.dist", ".php-cs-fixer.dist.php"};
 
 struct file_batch {
     char config[MAX_PATH];
@@ -32,22 +30,17 @@ struct file_batch_list {
 
 void test_config(char *buffer, char *path) {
     char config[MAX_PATH];
-
-    int length = sizeof(PHPCS_CONFIG_FILES) / sizeof(PHPCS_CONFIG_FILES[0]);
+    struct stat path_stat;
+    int length = sizeof(CONFIG_FILES) / sizeof(CONFIG_FILES[0]);
     for (int i = 0; i < length; i++) {
-        sprintf(config, "%s/%s", path, PHPCS_CONFIG_FILES[i]);
-        if (0 == access(config, R_OK)) {
-            sprintf(buffer, "--standard=%s/%s", path, PHPCS_CONFIG_FILES[i]);
-            return;
-        }
-    }
-
-    length = sizeof(PHP_CS_FIXER_CONFIG_FILES) / sizeof(PHP_CS_FIXER_CONFIG_FILES[0]);
-    for (int i = 0; i < length; i++) {
-        sprintf(config, "%s/%s", path, PHP_CS_FIXER_CONFIG_FILES[i]);
-        if (0 == access(config, R_OK)) {
-            sprintf(buffer, "--using-cache=no --config=%s/%s", path,
-                    PHP_CS_FIXER_CONFIG_FILES[i]);
+        sprintf(config, "%s/%s", path, CONFIG_FILES[i]);
+        if (stat(config, &path_stat) == 0) {
+            if (i < 2) {
+                sprintf(buffer, "--standard=%s/%s", path, CONFIG_FILES[i]);
+            } else {
+                sprintf(buffer, "--using-cache=no --config=%s/%s", path,
+                        CONFIG_FILES[i]);
+            }
             return;
         }
     }
@@ -56,14 +49,15 @@ void test_config(char *buffer, char *path) {
 void test_vendor(char *buffer, char *path) {
     char test_phpcs[MAX_PATH];
     sprintf(test_phpcs, "%s/vendor/bin/phpcbf", path);
-    if (0 == access(test_phpcs, R_OK)) {
+    struct stat path_stat;
+    if (stat(test_phpcs, &path_stat) == 0) {
         sprintf(buffer, "php -dmemory_limit=-1 %s/vendor/bin/phpcbf", path);
         return;
     }
 
     char test_php_cs_fixer[MAX_PATH];
     sprintf(test_php_cs_fixer, "%s/vendor/bin/php-cs-fixer", path);
-    if (0 == access(test_php_cs_fixer, R_OK)) {
+    if (stat(test_php_cs_fixer, &path_stat) == 0) {
         sprintf(buffer,
                 "PHP_CS_FIXER_IGNORE_ENV=true php -dmemory_limit=-1 %s fix",
                 test_php_cs_fixer);
@@ -193,6 +187,7 @@ int main(int argc, char *argv[]) {
     struct file_batch_list *list =
         malloc((sizeof(struct file_batch_list) * argc) +
                (sizeof(struct file_batch) * argc) + argv_length);
+    list->length = 0;
 
     for (int i = 1; i < argc; i++) {
         walk_path(argv[i], list);
