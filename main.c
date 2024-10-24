@@ -139,7 +139,7 @@ void walk_path(const char *path, struct file_batch_list *list) {
         if (!strlen(f_executable)) {
             test_vendor(f_executable, directory);
         }
-        if (!strlen(f_config) && !strlen(f_executable)) {
+        if (strlen(f_config) && strlen(f_executable)) {
             break;
         }
         strcat(directory, "/..");
