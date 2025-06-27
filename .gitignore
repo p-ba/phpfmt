@@ -1,7 +1,2 @@
-*
-!.gitignore
-!.editorconfig
-!.clang-format
-!*.c
-!*.h
-!Makefile
+.idea
+.DS_Store
