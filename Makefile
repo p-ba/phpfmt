@@ -15,25 +15,25 @@ all:
 		os=$$(echo $$line | cut -d'/' -f1); \
 		arch=$$(echo $$line | cut -d'/' -f2); \
 		echo "  > building for $$os/$$arch"; \
-		GOOS=$$os GOARCH=$$arch go build -o "bin/phpfmt-$$os-$$arch" main.go; \
+		GOOS=$$os GOARCH=$$arch go build -o "bin/frmt-$$os-$$arch" main.go; \
 	done
 
 clean:
 	@echo "Cleaning up..."
-	@if [ -f "$(HOME)/.local/bin/phpfmt" ]; then \
-		echo "Deleting executable from $(HOME)/.local/bin/phpfmt"; \
-		rm "$(HOME)/.local/bin/phpfmt"; \
+	@if [ -f "$(HOME)/.local/bin/frmt" ]; then \
+		echo "Deleting executable from $(HOME)/.local/bin/frmt"; \
+		rm "$(HOME)/.local/bin/frmt"; \
 	fi
 
 install: clean
 	@echo "Installing for $(OS)/$(ARCH)..."
-	@if [ ! -f "bin/phpfmt-$(OS)-$(ARCH)" ]; then \
+	@if [ ! -f "bin/frmt-$(OS)-$(ARCH)" ]; then \
 		echo "Error: Binary for $(OS)/$(ARCH) does not exist in bin directory"; \
 		echo "Please run 'make all' first or build the specific binary"; \
 		exit 1; \
 	fi
 	@mkdir -p "$(HOME)/.local/bin"
-	@echo "bin/phpfmt-$(OS)-$(ARCH)"
-	@cp "bin/phpfmt-$(OS)-$(ARCH)" "$(HOME)/.local/bin/phpfmt"
-	@chmod +x "$(HOME)/.local/bin/phpfmt"
-	@echo "phpfmt installed in $(HOME)/.local/bin"
+	@echo "bin/frmt-$(OS)-$(ARCH)"
+	@cp "bin/frmt-$(OS)-$(ARCH)" "$(HOME)/.local/bin/frmt"
+	@chmod +x "$(HOME)/.local/bin/frmt"
+	@echo "frmt installed in $(HOME)/.local/bin"
