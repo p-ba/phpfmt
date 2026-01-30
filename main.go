@@ -30,14 +30,14 @@ var languages = []languageConfig{
 		extensions:  []string{".js", ".mjs", ".cjs", ".jsx"},
 		configFiles: []string{".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json", ".eslintrc.yml", ".eslintrc.yaml", "eslint.config.js", "prettier.config.js", ".prettierrc", ".prettierrc.json", ".prettierrc.yml", ".prettierrc.yaml"},
 		executables: []string{"eslint", "prettier"},
-		defaultCmd:  "eslint",
+		defaultCmd:  "eslint --fix",
 	},
 	{
 		name:        "typescript",
 		extensions:  []string{".ts", ".tsx"},
-		configFiles: []string{".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json", ".eslintrc.yml", ".eslintrc.yaml", "eslint.config.js", "tsconfig.json", "prettier.config.js", ".prettierrc", ".prettierrc.json"},
+		configFiles: []string{".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json", ".eslintrc.yml", ".eslintrc.yaml", "eslint.config.js", "prettier.config.js", ".prettierrc", ".prettierrc.json"},
 		executables: []string{"eslint", "prettier"},
-		defaultCmd:  "eslint",
+		defaultCmd:  "eslint --fix",
 	},
 	{
 		name:        "go",
@@ -189,18 +189,20 @@ func testVendor(path string, lang *languageConfig) string {
 	return ""
 }
 
-func testConfig(path string) string {
+func testConfig(path string, lang *languageConfig) string {
+	if lang == nil {
+		return ""
+	}
+
 	dir := filepath.Dir(path)
 	for {
 		if dir == "/" || dir == "." {
 			break
 		}
-		for _, lang := range languages {
-			for _, configFile := range lang.configFiles {
-				fullPath := filepath.Join(dir, configFile)
-				if _, err := os.Stat(fullPath); err == nil {
-					return fullPath
-				}
+		for _, configFile := range lang.configFiles {
+			fullPath := filepath.Join(dir, configFile)
+			if _, err := os.Stat(fullPath); err == nil {
+				return fullPath
 			}
 		}
 		parent := filepath.Dir(dir)
@@ -266,9 +268,9 @@ func buildCommand(execPath, configPath string, lang *languageConfig) string {
 
 	if strings.HasPrefix(baseExec, "eslint") {
 		if configPath != "" {
-			return fmt.Sprintf("%s --config %s", execPath, configPath)
+			return fmt.Sprintf("%s --fix --config %s", execPath, configPath)
 		}
-		return fmt.Sprintf("%s", execPath)
+		return fmt.Sprintf("%s --fix", execPath)
 	}
 
 	if strings.HasPrefix(baseExec, "flake8") {
@@ -389,7 +391,7 @@ func walkPath(path string, list *fileBatchList) {
 	}
 
 	lang := getLanguageForFile(absolutePath)
-	fConfig := testConfig(absolutePath)
+	fConfig := testConfig(absolutePath, lang)
 	fExecutable := testVendor(absolutePath, lang)
 
 	if fExecutable == "" && lang != nil {
