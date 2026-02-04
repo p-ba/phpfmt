@@ -10,10 +10,12 @@ frmt automatically detects the language of your source files and runs the approp
 
 ```bash
 # Build from source
-go build -o frmt main.go
+cargo build --release
 
 # Install to ~/.local/bin
 make install
+
+# The binary will be at target/release/frmt
 ```
 
 ## Usage
@@ -27,6 +29,31 @@ frmt
 
 # Lint/format files in a specific directory
 frmt ./src ./tests
+```
+
+## Development
+
+```bash
+# Build in debug mode
+make rust
+
+# Build in release mode
+make rust-release
+
+# Format code
+make fmt
+
+# Run linter
+make clippy
+
+# Run tests
+make test
+
+# Clean build artifacts
+make clean
+
+# Install binary
+make install
 ```
 
 ## Supported Languages
@@ -59,5 +86,5 @@ frmt ./src ./tests
 
 ## Requirements
 
-- Go 1.x
+- Rust 1.70 or later
 - Linters/formatters for the languages you want to use (must be installed separately)

@@ -1,0 +1,7 @@
+[package]
+name = "frmt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+which = "7.0"
