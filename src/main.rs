@@ -371,6 +371,22 @@ fn resolve_executable(path: &Path, lang: &LanguageConfig, tool: &ToolConfig) -> 
 }
 
 fn pick_tool_for_file(path: &Path, lang: &LanguageConfig) -> (&'static ToolConfig, Option<String>) {
+    if lang.name == "javascript" || lang.name == "typescript" {
+        let eslint_tool = lang.tools.iter().find(|tool| tool.executable == "eslint");
+        let prettier_tool = lang.tools.iter().find(|tool| tool.executable == "prettier");
+
+        if let Some(tool) = eslint_tool {
+            if let Some(config_path) = test_config_for_tool(path, tool.config_files) {
+                return (tool, Some(config_path));
+            }
+        }
+
+        if let Some(tool) = prettier_tool {
+            let config_path = test_config_for_tool(path, tool.config_files);
+            return (tool, config_path);
+        }
+    }
+
     for tool in lang.tools {
         if let Some(config_path) = test_config_for_tool(path, tool.config_files) {
             return (tool, Some(config_path));
@@ -609,5 +625,15 @@ mod tests {
         let lang = get_language_for_file(&dockerfile).expect("dockerfile language");
 
         assert_eq!(lang.name, "dockerfile");
+    }
+
+    #[test]
+    fn js_defaults_to_prettier_without_eslint_config() {
+        let js = PathBuf::from("tmp/no-eslint/index.js");
+        let lang = get_language_for_file(&js).expect("js language");
+        let (tool, config) = pick_tool_for_file(&js, lang);
+
+        assert_eq!(tool.executable, "prettier");
+        assert!(config.is_none());
     }
 }
